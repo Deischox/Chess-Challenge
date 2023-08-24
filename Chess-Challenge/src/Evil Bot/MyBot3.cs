@@ -1,12 +1,15 @@
 ﻿using ChessChallenge.API;
-using Raylib_cs;
 using System;
+using System.ComponentModel;
+using System.Net.Mail;
+using System.Runtime.CompilerServices;
 using static ChessChallenge.Application.ConsoleHelper;
 
-public class MyBot : IChessBot
+public class EvilBot4 : IChessBot
 {
     public Move best;
     public Board board;
+    public int searchAmount = 0;
     public float[] moveScore;
 
     private int[,] bishoppos = new int[,]
@@ -14,14 +17,22 @@ public class MyBot : IChessBot
      {-5, -5, -5, -5, -5, -5, -5, -5},
      {-5, 10,  5,  8,  8,  5, 10, -5},
      {-5,  5,  3,  8,  8,  3,  5, -5},
-     {-5,  3, 10,  3,  3, 10,  3, -5}
+     {-5,  3, 10,  3,  3, 10,  3, -5},
+     {-5,  3, 10,  3,  3, 10,  3, -5},
+     {-5,  5,  3,  8,  8,  3,  5, -5},
+     {-5, 10,  5,  8,  8,  5, 10, -5},
+     {-5, -5, -5, -5, -5, -5, -5, -5}
    };
     private int[,] knightpos = new int[,]
     {
      {-10, -5, -5, -5, -5, -5, -5,-10},
      { -8,  0,  0,  3,  3,  0,  0, -8},
      { -8,  0, 10,  8,  8, 10,  0, -8},
-     { -8,  0,  8, 10, 10,  8,  0, -8}
+     { -8,  0,  8, 10, 10,  8,  0, -8},
+     { -8,  0,  8, 10, 10,  8,  0, -8},
+     { -8,  0, 10,  8,  8, 10,  0, -8},
+     { -8,  0,  0,  3,  3,  0,  0, -8},
+     {-10, -5, -5, -5, -5, -5, -5,-10}
     };
 
     private int[,] pawnposWhite = new int[,]
@@ -56,39 +67,41 @@ public class MyBot : IChessBot
     {
         //TODO i think a problem is if BOT has M2 but enemy M1, then does the bot thinks he is winning
         /*
-         * 1) Run Evaluation till all caputre moves are done - DONE
-         * 2) Implement King Safty - 
+         * 1) Run Evaluation till all caputre moves are done
+         * 2) Implement King Safty
          * 3) Implement EndGame
-         * 4) Reduce to fit Size - Done
-         * 4.1) Remove Vertical Symmetry Postion Table 
+         * 4) Reduce to fit Size
          * 
          */
 
-        //test();
-
+        test();
         this.board = board;
-        return GetBestMove(); ;
+        Move bestMove = GetBestMove(board);
+        return bestMove;
         //return Search(board,2,float.NegativeInfinity, float.PositiveInfinity).Item1;
     }
-    /*
+
     void test()
     {
         Board newBoard = Board.CreateBoardFromFEN("3kr3/8/3p1p2/Q3p2q/3P1P2/8/4R3/6K1 w - - 0 1");
         this.board = newBoard;
-        Move bestMove = GetBestMove();
+        Move bestMove = GetBestMove(newBoard);
         Log(bestMove.ToString());
 
         Log(Evaluate().ToString());
         Log(CountMaterial(true).ToString());
         Log(CountMaterial(false).ToString());
     }
-    */
 
     public int getPieceValue(PieceType piece)
     {
-        switch(piece)
+        switch (piece)
         {
+            case PieceType.Pawn:
+                return 100;
             case PieceType.Knight:
+                return 300;
+            case PieceType.Bishop:
                 return 300;
             case PieceType.Rook:
                 return 500;
@@ -96,7 +109,7 @@ public class MyBot : IChessBot
                 return 900;
             case PieceType.King:
                 return 10000;
-            default: return (int)piece * 100;
+            default: return 0;
 
         }
     }
@@ -104,13 +117,13 @@ public class MyBot : IChessBot
     public Move[] OrderMoves(Board board, Move[] moves)
     {
         moveScore = new float[moves.Length];
-        for(var i = 0; i < moves.Length; i++)
+        for (var i = 0; i < moves.Length; i++)
         {
             int moveScoreGuess = 0;
             PieceType movePieceType = board.GetPiece(moves[i].StartSquare).PieceType;
             PieceType capturePieceType = board.GetPiece(moves[i].TargetSquare).PieceType;
 
-            if(capturePieceType != PieceType.None)
+            if (capturePieceType != PieceType.None)
             {
                 moveScoreGuess = -10 * getPieceValue(capturePieceType) + getPieceValue(movePieceType);
             }
@@ -119,15 +132,15 @@ public class MyBot : IChessBot
             {
                 moveScoreGuess -= getPieceValue(moves[i].PromotionPieceType);
             }
-
-
-
+            /*board.MakeMove(moves[i]);
+            if (board.IsInCheck()) moveScoreGuess = -10;
+            board.UndoMove(moves[i]);*/
             moveScore[i] = moveScoreGuess;
         }
         Array.Sort(moveScore, moves);
         return moves;
     }
-    
+
     public int Evaluate()
     {
         int whiteMaterial = CountMaterial(true);
@@ -135,11 +148,13 @@ public class MyBot : IChessBot
 
         if (!board.IsWhiteToMove && board.IsInCheck()) blackMaterial -= 50;
         if (board.IsWhiteToMove && board.IsInCheck()) whiteMaterial -= 50;
-        if (!board.IsWhiteToMove && board.IsInCheckmate()) {
+        if (!board.IsWhiteToMove && board.IsInCheckmate())
+        {
             blackMaterial = -10000;
         }
-        if (board.IsWhiteToMove && board.IsInCheckmate()) {
-            whiteMaterial = -10000; 
+        if (board.IsWhiteToMove && board.IsInCheckmate())
+        {
+            whiteMaterial = -10000;
         }
         int eval = whiteMaterial - blackMaterial;
         return board.IsWhiteToMove ? eval : -eval;
@@ -147,41 +162,7 @@ public class MyBot : IChessBot
 
     }
 
-    int materialCounter(PieceType piece, bool white, int[,] position)
-    {
-        var material = 0;
-        foreach (Piece pawn in board.GetPieceList(piece, white))
-        {
-            var rank = pawn.Square.Rank;
-            if((int)piece == 1)
-            {
-                rank = white ? rank : 7 - rank;
-            }
-            if((int) piece == 3 || (int)piece == 2)
-            {
-                rank = rank > 3 ? rank - 4 : rank;
-            }
-            material += getPieceValue(piece) + position[rank, pawn.Square.File];
-        }
-        return material;
-    }
-
-    
     int CountMaterial(bool white)
-    {
-        int material = 0;
-        //material += board.GetPieceList(PieceType.Pawn, white).Count * getPieceValue(PieceType.Pawn);
-        material += materialCounter(PieceType.Pawn, white, pawnposWhite);
-        material += materialCounter(PieceType.Knight, white, knightpos);
-        material += materialCounter(PieceType.Bishop, white, bishoppos);
-        //material += board.GetPieceList(PieceType.Bishop, white).Count * getPieceValue(PieceType.Bishop);
-        //material += board.GetPieceList(PieceType.Knight, white).Count * getPieceValue(PieceType.Knight);
-        material += board.GetPieceList(PieceType.Rook, white).Count * getPieceValue(PieceType.Rook);
-        material += board.GetPieceList(PieceType.Queen, white).Count * getPieceValue(PieceType.Queen);
-         
-        return material;
-    }
-    /*int CountMaterial(bool white)
     {
         int material = 0;
         //material += board.GetPieceList(PieceType.Pawn, white).Count * getPieceValue(PieceType.Pawn);
@@ -192,11 +173,11 @@ public class MyBot : IChessBot
         }
         foreach (Piece pawn in board.GetPieceList(PieceType.Knight, white))
         {
-            material += getPieceValue(PieceType.Knight) + knightpos[pawn.Square.Rank > 3 ? 7-pawn.Square.Rank : pawn.Square.Rank, pawn.Square.File];
+            material += getPieceValue(PieceType.Knight) + knightpos[pawn.Square.Rank, pawn.Square.File];
         }
         foreach (Piece pawn in board.GetPieceList(PieceType.Bishop, white))
         {
-            material += getPieceValue(PieceType.Bishop) + bishoppos[pawn.Square.Rank > 3 ? 7 - pawn.Square.Rank : pawn.Square.Rank, pawn.Square.File];
+            material += getPieceValue(PieceType.Bishop) + bishoppos[pawn.Square.Rank, pawn.Square.File];
         }
         //material += board.GetPieceList(PieceType.Bishop, white).Count * getPieceValue(PieceType.Bishop);
         //material += board.GetPieceList(PieceType.Knight, white).Count * getPieceValue(PieceType.Knight);
@@ -204,6 +185,34 @@ public class MyBot : IChessBot
         material += board.GetPieceList(PieceType.Queen, white).Count * getPieceValue(PieceType.Queen);
 
         return material;
+    }
+
+
+    /*public int Search(int depth)
+    {
+        Move[] moves = OrderMoves(board, board.GetLegalMoves());
+        if(depth == 0)
+        {
+            return Evaluate();
+        }
+        if(moves.Length == 0)
+        {
+            if (board.IsInCheck())
+            {
+                return int.MinValue;
+            }
+            return 0;
+        }
+        int maxValue = int.MinValue;
+        foreach(Move move in moves)
+        {
+            board.MakeMove(move);
+            int eval = -Search(depth - 1);
+            board.UndoMove(move);
+            maxValue = Math.Max(maxValue, eval);
+        }
+        return maxValue;
+        
     }*/
 
     public int SearchCaptures(int alpha, int beta)
@@ -212,67 +221,123 @@ public class MyBot : IChessBot
         if (eval >= beta) return beta;
         alpha = Math.Max(alpha, eval);
 
-        Move[] moves = OrderMoves(board, board.GetLegalMoves(true));
-        foreach(Move move in moves)
+        Move[] moves = board.GetLegalMoves(true);
+
+        foreach (Move move in moves)
         {
             board.MakeMove(move);
             eval = -SearchCaptures(-beta, -alpha);
             board.UndoMove(move);
+
             if (eval >= beta) return beta;
             alpha = Math.Max(alpha, eval);
         }
         return alpha;
     }
 
-    public int minimax(int depth, int alpha, int beta)
+    public int Search(int depth, int alpha, int beta)
     {
+
         if (depth == 0)
         {
             return SearchCaptures(alpha, beta);
         }
+
         Move[] moves = OrderMoves(board, board.GetLegalMoves());
         if (moves.Length == 0)
         {
             if (board.IsInCheck())
             {
-                return -100000 - 1000 * depth;
+                return -10000 - depth * 1000;
             }
             return 0;
         }
-        int value = int.MinValue;
+
         foreach (Move move in moves)
         {
             board.MakeMove(move);
-            int eval = -minimax(depth - 1, -beta, -alpha);
+            int eval = -Search(depth - 1, -beta, -alpha);
             board.UndoMove(move);
-            value = Math.Max(eval, value);
-            alpha = Math.Max(alpha, eval);
-            if (alpha >= beta) { 
-                return value; 
-            }
-            
+            if (eval >= beta) return beta;
+            alpha = Math.Max(eval, alpha);
         }
-        return value;
+        return alpha;
 
     }
 
+    public int Search(int depth, int alpha, int beta, bool maximize)
+    {
+        Move[] moves = OrderMoves(board, board.GetLegalMoves());
+        if (depth == 0)
+        {
+            return Evaluate();
+        }
+        if (moves.Length == 0)
+        {
+            if (board.IsInCheck())
+            {
+                return -10000 - depth * 1000;
+            }
+            return 0;
+        }
+        if (maximize)
+        {
+            int maxEval = int.MinValue;
+            foreach (Move move in moves)
+            {
+                board.MakeMove(move);
+                int eval = 0;
+                eval = Search(depth - 1, alpha, beta, false);
+                board.UndoMove(move);
+                maxEval = Math.Max(maxEval, eval);
+                alpha = Math.Max(alpha, eval);
+                if (beta <= alpha)
+                {
+                    break;
+                }
+            }
+            return maxEval;
+
+        }
+        else
+        {
+            int minVal = int.MaxValue;
+            foreach (Move move in moves)
+            {
+                board.MakeMove(move);
+                int eval = 0;
+                //if (board.IsRepeatedPosition()) eval = 100000;
+                eval = Search(depth - 1, alpha, beta, true);
+                board.UndoMove(move);
+                minVal = Math.Min(minVal, eval);
+                beta = Math.Min(beta, eval);
+                if (beta <= alpha)
+                {
+                    break;
+                }
+            }
+            return minVal;
+        }
+
+    }
 
     // Helper function to evaluate all capture moves
-    private Move GetBestMove()
+    private Move GetBestMove(Board board)
     {
         float bestValue = float.MinValue;
         Move bestMove = Move.NullMove;
 
-        Move[] moves = OrderMoves(board,board.GetLegalMoves());
+        Move[] moves = OrderMoves(board, board.GetLegalMoves());
         foreach (Move move in moves)
         {
             board.MakeMove(move);
             int value = 0;
             if (board.IsRepeatedPosition()) value = -100000000;
-            else value = -minimax(4, int.MinValue, int.MaxValue);
+            else value = -Search(4, int.MinValue, int.MaxValue, true);
 
             board.UndoMove(move);
-            if(value >= bestValue)
+            //TODO Problem is that M4 equally good to M1 is 
+            if (value >= bestValue)
             {
                 bestValue = value;
                 bestMove = move;
